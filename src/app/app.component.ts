@@ -19,7 +19,6 @@ export class AppComponent {
   readonly currentMonth = new Date().toISOString().slice(0, 7);
 
   readonly loanForm = this.fb.nonNullable.group({
-    requestDate: [this.today(), [Validators.required]],
     title: ['', [Validators.required, Validators.maxLength(24)]],
     amount: [0, [Validators.required, Validators.min(1)]],
     note: ['', [Validators.maxLength(80)]],
@@ -73,7 +72,7 @@ export class AppComponent {
       return;
     }
     await this.ledgerService.requestLoan(this.loanForm.getRawValue());
-    this.loanForm.reset({ requestDate: this.today(), title: '', amount: 0, note: '' });
+    this.loanForm.reset({ title: '', amount: 0, note: '' });
     this.view.set('home');
   }
 

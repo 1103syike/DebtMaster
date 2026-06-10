@@ -50,13 +50,13 @@ export class LedgerService {
     };
   }
 
-  async requestLoan(input: { requestDate: string; title: string; amount: number; note: string }): Promise<void> {
+  async requestLoan(input: { title: string; amount: number; note: string }): Promise<void> {
     await this.update((ledger) => {
       const request = this.cleanLoanRequest({
         id: crypto.randomUUID(),
         title: input.title,
         amount: Number(input.amount),
-        requestDate: input.requestDate,
+        requestDate: this.today(),
         note: input.note,
         status: 'pending',
         createdAt: Date.now(),

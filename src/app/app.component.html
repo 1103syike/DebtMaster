@@ -123,10 +123,7 @@
       <section *ngIf="view() === 'loan' && role() === 'chengen'" class="panel form-panel">
         <h2>申請一筆新貸款</h2>
         <form [formGroup]="loanForm" (ngSubmit)="submitLoan()">
-          <label>
-            申請日期
-            <input formControlName="requestDate" type="date" [max]="today()">
-          </label>
+          <p class="inline-note">送出後會自動記錄今天為申請日。</p>
           <label>
             名稱
             <input formControlName="title" placeholder="例如：信用卡代墊">
