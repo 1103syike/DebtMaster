@@ -31,6 +31,13 @@
         <div class="progress">
           <span [style.width.%]="total.paidPercent"></span>
         </div>
+        <div *ngIf="currentOverallPeriodLabel(ledger.items)" class="period-box hero-period">
+          <span>本期 {{ currentOverallPeriodLabel(ledger.items) }}</span>
+          <strong *ngIf="paidInCurrentOverallPeriod(ledger.items, ledger.monthlyPayments) > 0">
+            已還 {{ money(paidInCurrentOverallPeriod(ledger.items, ledger.monthlyPayments)) }}
+          </strong>
+          <strong *ngIf="paidInCurrentOverallPeriod(ledger.items, ledger.monthlyPayments) === 0">本期未還</strong>
+        </div>
       </section>
 
       <nav class="tabs" aria-label="主要功能">
@@ -91,13 +98,6 @@
             <div class="item-meta">
               <span>已還 {{ percent(item.totalAmount, item.paidAmount) }}%</span>
               <span>{{ money(item.paidAmount) }} / {{ money(item.totalAmount) }}</span>
-            </div>
-            <div class="period-box">
-              <span>本期 {{ currentPeriodLabel(item) }}</span>
-              <strong *ngIf="paidInCurrentPeriod(item, ledger.monthlyPayments) > 0">
-                已還 {{ money(paidInCurrentPeriod(item, ledger.monthlyPayments)) }}
-              </strong>
-              <strong *ngIf="paidInCurrentPeriod(item, ledger.monthlyPayments) === 0">本期未還</strong>
             </div>
             <div class="progress small">
               <span [style.width.%]="percent(item.totalAmount, item.paidAmount)"></span>

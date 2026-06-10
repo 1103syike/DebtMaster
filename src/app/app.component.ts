@@ -203,6 +203,25 @@ export class AppComponent {
     return `${this.shortDate(start)}-${this.shortDate(end)}`;
   }
 
+  currentOverallPeriodLabel(items: DebtItem[]): string {
+    const oldestItem = this.oldestDebtItem(items);
+    return oldestItem ? this.currentPeriodLabel(oldestItem) : '';
+  }
+
+  paidInCurrentOverallPeriod(items: DebtItem[], payments: MonthlyPayment[]): number {
+    const oldestItem = this.oldestDebtItem(items);
+    if (!oldestItem) {
+      return 0;
+    }
+    const { startKey, endKey } = this.currentPeriod(oldestItem);
+    return payments
+      .filter((payment) => {
+        const paymentDate = payment.dueDate ?? payment.month;
+        return payment.status === 'confirmed' && paymentDate >= startKey && paymentDate <= endKey;
+      })
+      .reduce((sum, payment) => sum + payment.paidAmount, 0);
+  }
+
   paidInCurrentPeriod(item: DebtItem, payments: MonthlyPayment[]): number {
     const { startKey, endKey } = this.currentPeriod(item);
     return payments
@@ -262,6 +281,10 @@ export class AppComponent {
 
   private shortDate(date: Date): string {
     return `${date.getMonth() + 1}/${date.getDate()}`;
+  }
+
+  private oldestDebtItem(items: DebtItem[]): DebtItem | undefined {
+    return [...items].sort((a, b) => a.createdAt - b.createdAt)[0];
   }
 
   private paymentStatusOrder(status: MonthlyPayment['status']): number {

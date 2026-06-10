@@ -111,6 +111,10 @@ form {
   font-size: 17px;
 }
 
+.hero-period {
+  margin-top: 14px;
+}
+
 .progress {
   height: 14px;
   overflow: hidden;

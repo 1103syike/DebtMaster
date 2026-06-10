@@ -63,7 +63,7 @@ export class LedgerService {
       });
 
       return {
-        ...this.addAction(ledger, 'chengen', `丞恩申請貸款 ${this.formatMoney(request.amount)}`),
+        ...this.addAction(ledger, 'chengen', `[${request.title}] 丞恩申請貸款 ${this.formatMoney(request.amount)}`),
         loanRequests: [request, ...ledger.loanRequests],
       };
     });
@@ -83,8 +83,8 @@ export class LedgerService {
           ledger,
           'shuni',
           status === 'approved'
-            ? `${isCorrection ? '淑尼更正為核准貸款' : '淑尼核准貸款'} ${this.formatMoney(request.amount)}`
-            : `${isCorrection ? '淑尼更正為退回貸款' : '淑尼退回貸款'} ${this.formatMoney(request.amount)}`,
+            ? `[${request.title}] ${isCorrection ? '淑尼更正為核准貸款' : '淑尼核准貸款'} ${this.formatMoney(request.amount)}`
+            : `[${request.title}] ${isCorrection ? '淑尼更正為退回貸款' : '淑尼退回貸款'} ${this.formatMoney(request.amount)}`,
         ),
         loanRequests: ledger.loanRequests.map((item) =>
           item.id === id ? this.reviewedLoanRequest(item, status, reviewedAt) : item,
@@ -142,8 +142,10 @@ export class LedgerService {
             paidAt: Date.now(),
           };
 
+      const debtTitle = this.debtTitle(ledger.items, input.debtItemId);
+
       return {
-        ...this.addAction(ledger, 'chengen', `丞恩還款 ${this.formatMoney(plannedAmount)}`),
+        ...this.addAction(ledger, 'chengen', `[${debtTitle}] 丞恩還款 ${this.formatMoney(plannedAmount)}`),
         monthlyPayments: [payment, ...ledger.monthlyPayments.filter((item) => item.id !== payment.id)],
       };
     });
@@ -177,8 +179,10 @@ export class LedgerService {
           })
         : this.allocatePaymentToOldestItems(ledger.items, payment.paidAmount);
 
+      const debtTitle = this.debtTitle(ledger.items, payment.debtItemId);
+
       return {
-        ...this.addAction(ledger, 'shuni', `淑尼已收到 ${this.formatMoney(payment.paidAmount)}`),
+        ...this.addAction(ledger, 'shuni', `[${debtTitle}] 淑尼已收到 ${this.formatMoney(payment.paidAmount)}`),
         items,
         monthlyPayments: ledger.monthlyPayments.map((item) =>
           item.id === id ? { ...item, status: 'confirmed', confirmedAt: Date.now() } : item,
@@ -202,8 +206,10 @@ export class LedgerService {
           )
         : ledger.items;
 
+      const debtTitle = this.debtTitle(ledger.items, payment.debtItemId);
+
       return {
-        ...this.addAction(ledger, 'shuni', `淑尼已更正未收到 ${this.formatMoney(payment.paidAmount)}`),
+        ...this.addAction(ledger, 'shuni', `[${debtTitle}] 淑尼已更正未收到 ${this.formatMoney(payment.paidAmount)}`),
         items,
         monthlyPayments: ledger.monthlyPayments.map((item) => {
           if (item.id !== id) {
@@ -272,6 +278,10 @@ export class LedgerService {
         ...ledger.actions,
       ],
     };
+  }
+
+  private debtTitle(items: DebtItem[], debtItemId?: string): string {
+    return items.find((item) => item.id === debtItemId)?.title ?? '未指定欠款';
   }
 
   private formatMoney(value: number): string {
