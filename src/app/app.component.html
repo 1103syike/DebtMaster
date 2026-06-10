@@ -36,7 +36,7 @@
       <nav class="tabs" aria-label="主要功能">
         <button type="button" [class.active]="view() === 'home'" (click)="view.set('home')">首頁</button>
         <button type="button" [class.active]="view() === 'loan'" (click)="view.set('loan')">{{ loanTabLabel() }}</button>
-        <button type="button" [class.active]="view() === 'payment'" (click)="view.set('payment')">還款計畫</button>
+        <button type="button" [class.active]="view() === 'payment'" (click)="view.set('payment')">{{ paymentTabLabel() }}</button>
       </nav>
 
       <section *ngIf="view() === 'home'" class="stack">
@@ -45,7 +45,7 @@
             <p class="eyebrow">{{ paymentDateLabel(total.nextPayment) }} 要還</p>
             <strong>{{ money(total.nextPayment.plannedAmount) }}</strong>
             <small>針對：{{ paymentDebtTitle(total.nextPayment, ledger.items) }}</small>
-            <small *ngIf="total.nextPayment.status === 'paid'">已標記付款，等待淑尼確認收到。</small>
+            <small *ngIf="total.nextPayment.status === 'paid'">已送出還款申請，等待淑尼確認收到。</small>
             <small *ngIf="total.nextPayment.status === 'planned'">還沒標記已還。</small>
           </div>
           <button
@@ -105,6 +105,7 @@
               <h3>{{ request.title }}</h3>
               <p>{{ money(request.amount) }}</p>
               <small>申請日期：{{ loanDateLabel(request) }}</small>
+              <small *ngIf="loanReviewText(request)">{{ loanReviewText(request) }}</small>
               <small *ngIf="request.note">{{ request.note }}</small>
             </div>
             <span class="status" [class.done]="request.status !== 'pending'">
@@ -114,6 +115,25 @@
               <button class="primary compact" type="button" (click)="updateLoan(request, 'approved')">核准</button>
               <button class="secondary compact" type="button" (click)="updateLoan(request, 'rejected')">退回</button>
             </div>
+          </article>
+        </section>
+
+        <section class="panel">
+          <div class="section-title">
+            <h2>還款紀錄</h2>
+            <span>{{ confirmedPaymentRecords(ledger.monthlyPayments).length }} 筆</span>
+          </div>
+
+          <p *ngIf="confirmedPaymentRecords(ledger.monthlyPayments).length === 0" class="empty">目前沒有已核准的還款紀錄。</p>
+
+          <article *ngFor="let payment of confirmedPaymentRecords(ledger.monthlyPayments); trackBy: trackById" class="request-card">
+            <div>
+              <h3>{{ paymentDebtTitle(payment, ledger.items) }}</h3>
+              <p>{{ money(payment.paidAmount) }}</p>
+              <small>還款日期：{{ paymentDateLabel(payment) }}</small>
+              <small>核准日：{{ confirmedDateLabel(payment) }}</small>
+            </div>
+            <span class="status done">已入帳</span>
           </article>
         </section>
       </section>
@@ -154,6 +174,7 @@
             <h3>{{ request.title }}</h3>
             <p>{{ money(request.amount) }}</p>
             <small>申請日期：{{ loanDateLabel(request) }}</small>
+            <small *ngIf="loanReviewText(request)">{{ loanReviewText(request) }}</small>
             <small *ngIf="request.note">{{ request.note }}</small>
           </div>
           <span class="status">等待簽核</span>
@@ -164,8 +185,8 @@
         </article>
       </section>
 
-      <section *ngIf="view() === 'payment'" class="panel form-panel">
-        <h2>設定還款日期與金額</h2>
+      <section *ngIf="view() === 'payment' && role() === 'chengen'" class="panel form-panel">
+        <h2>送出還款申請</h2>
         <p *ngIf="unpaidItems(ledger.items).length === 0" class="empty settled-empty">已結清，現在沒有需要還款的欠款項目。</p>
         <form *ngIf="unpaidItems(ledger.items).length > 0" [formGroup]="paymentForm" (ngSubmit)="setPlannedPayment()">
           <label>
@@ -195,8 +216,30 @@
               {{ money(amount) }}
             </button>
           </div>
-          <button class="primary wide" type="submit">儲存還款計畫</button>
+          <button class="primary wide" type="submit">送出還款申請</button>
         </form>
+      </section>
+
+      <section *ngIf="view() === 'payment' && role() === 'shuni'" class="panel">
+        <div class="section-title">
+          <h2>還款簽核</h2>
+          <span>{{ pendingPaymentRequests(ledger.monthlyPayments).length }} 筆</span>
+        </div>
+
+        <p *ngIf="pendingPaymentRequests(ledger.monthlyPayments).length === 0" class="empty">目前沒有需要簽核的還款。</p>
+
+        <article *ngFor="let payment of pendingPaymentRequests(ledger.monthlyPayments); trackBy: trackById" class="request-card">
+          <div>
+            <h3>{{ paymentDebtTitle(payment, ledger.items) }}</h3>
+            <p>{{ money(payment.paidAmount) }}</p>
+            <small>還款日期：{{ paymentDateLabel(payment) }}</small>
+            <small *ngIf="confirmedDateLabel(payment)">核准日：{{ confirmedDateLabel(payment) }}</small>
+          </div>
+          <span class="status">等待確認</span>
+          <div class="actions">
+            <button class="primary compact" type="button" (click)="confirmPaid(payment)">確認收到</button>
+          </div>
+        </article>
       </section>
     </ng-container>
   </ng-container>

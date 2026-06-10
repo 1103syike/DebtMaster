@@ -19,6 +19,9 @@ export interface LoanRequest {
   note?: string;
   status: LoanStatus;
   createdAt: number;
+  reviewedAt?: number;
+  approvedAt?: number;
+  rejectedAt?: number;
 }
 
 export interface MonthlyPayment {

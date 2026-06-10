@@ -73,10 +73,21 @@ export class LedgerService {
       if (!request) {
         return ledger;
       }
+      const reviewedAt = Date.now();
 
       return {
         ...ledger,
-        loanRequests: ledger.loanRequests.map((item) => (item.id === id ? { ...item, status } : item)),
+        loanRequests: ledger.loanRequests.map((item) =>
+          item.id === id
+            ? {
+                ...item,
+                status,
+                reviewedAt,
+                approvedAt: status === 'approved' ? reviewedAt : item.approvedAt,
+                rejectedAt: status === 'rejected' ? reviewedAt : item.rejectedAt,
+              }
+            : item,
+        ),
         items:
           status === 'approved'
             ? [
@@ -103,18 +114,27 @@ export class LedgerService {
         (payment) =>
           (payment.dueDate ?? payment.month) === input.dueDate &&
           (payment.debtItemId ?? '') === input.debtItemId &&
-          payment.status === 'planned',
+          payment.status === 'paid',
       );
       const payment: MonthlyPayment = existing
-        ? { ...existing, month, dueDate: input.dueDate, debtItemId: input.debtItemId, plannedAmount }
+        ? {
+            ...existing,
+            month,
+            dueDate: input.dueDate,
+            debtItemId: input.debtItemId,
+            plannedAmount,
+            paidAmount: plannedAmount,
+            paidAt: Date.now(),
+          }
         : {
             id: crypto.randomUUID(),
             month,
             dueDate: input.dueDate,
             debtItemId: input.debtItemId,
             plannedAmount,
-            paidAmount: 0,
-            status: 'planned',
+            paidAmount: plannedAmount,
+            status: 'paid',
+            paidAt: Date.now(),
           };
 
       return {

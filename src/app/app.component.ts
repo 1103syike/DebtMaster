@@ -34,6 +34,7 @@ export class AppComponent {
   readonly quickAmounts = [1000, 3000, 5000, 10000];
   readonly roleName = computed(() => (this.role() === 'shuni' ? '淑尼' : '丞恩'));
   readonly loanTabLabel = computed(() => (this.role() === 'shuni' ? '貸款簽核' : '申請貸款'));
+  readonly paymentTabLabel = computed(() => (this.role() === 'shuni' ? '還款簽核' : '還款申請'));
 
   constructor(
     private readonly fb: FormBuilder,
@@ -90,6 +91,7 @@ export class AppComponent {
       return;
     }
     await this.ledgerService.setMonthlyPayment(this.paymentForm.getRawValue());
+    this.paymentForm.reset({ dueDate: this.nextMonthDate(), debtItemId: '', plannedAmount: 0 });
     this.view.set('home');
   }
 
@@ -117,8 +119,39 @@ export class AppComponent {
     return request.requestDate ?? new Date(request.createdAt).toISOString().slice(0, 10);
   }
 
+  reviewedDateLabel(request: LoanRequest): string {
+    const timestamp = request.approvedAt ?? request.rejectedAt ?? request.reviewedAt;
+    return timestamp ? this.dateLabel(timestamp) : '';
+  }
+
+  loanReviewText(request: LoanRequest): string {
+    if (request.approvedAt) {
+      return `核准日：${this.dateLabel(request.approvedAt)}`;
+    }
+    if (request.rejectedAt) {
+      return `退回日：${this.dateLabel(request.rejectedAt)}`;
+    }
+    return '';
+  }
+
+  confirmedDateLabel(payment: MonthlyPayment): string {
+    return payment.confirmedAt ? this.dateLabel(payment.confirmedAt) : '';
+  }
+
   unpaidItems(items: DebtItem[]): DebtItem[] {
     return items.filter((item) => item.totalAmount > item.paidAmount);
+  }
+
+  pendingPaymentRequests(payments: MonthlyPayment[]): MonthlyPayment[] {
+    return payments
+      .filter((payment) => payment.status === 'paid')
+      .sort((a, b) => (a.dueDate ?? a.month).localeCompare(b.dueDate ?? b.month));
+  }
+
+  confirmedPaymentRecords(payments: MonthlyPayment[]): MonthlyPayment[] {
+    return payments
+      .filter((payment) => payment.status === 'confirmed')
+      .sort((a, b) => (b.confirmedAt ?? 0) - (a.confirmedAt ?? 0));
   }
 
   pendingLoanRequests(requests: LoanRequest[]): LoanRequest[] {
@@ -133,6 +166,14 @@ export class AppComponent {
     const date = new Date();
     date.setMonth(date.getMonth() + 1);
     return date.toISOString().slice(0, 10);
+  }
+
+  private dateLabel(timestamp: number): string {
+    return new Intl.DateTimeFormat('sv-SE', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date(timestamp));
   }
 
 }
