@@ -107,51 +107,6 @@
 
         <section class="panel">
           <div class="section-title">
-            <h2>貸款紀錄</h2>
-            <span>{{ ledger.loanRequests.length }} 筆</span>
-          </div>
-
-          <p *ngIf="ledger.loanRequests.length === 0" class="empty">沒有新的貸款申請。</p>
-
-          <article *ngFor="let request of ledger.loanRequests; trackBy: trackById" class="request-card">
-            <div>
-              <h3>{{ request.title }}</h3>
-              <p>{{ money(request.amount) }}</p>
-              <small>申請日期：{{ loanDateLabel(request) }}</small>
-              <small *ngIf="loanReviewText(request)">{{ loanReviewText(request) }}</small>
-              <small *ngIf="request.note">{{ request.note }}</small>
-            </div>
-            <span class="status" [class.done]="request.status !== 'pending'">
-              {{ request.status === 'pending' ? '等待簽核' : request.status === 'approved' ? '已核准' : '已退回' }}
-            </span>
-            <div *ngIf="role() === 'shuni' && request.status === 'pending'" class="actions">
-              <button class="primary compact" type="button" (click)="updateLoan(request, 'approved')">核准</button>
-              <button class="secondary compact" type="button" (click)="updateLoan(request, 'rejected')">退回</button>
-            </div>
-          </article>
-        </section>
-
-        <section class="panel">
-          <div class="section-title">
-            <h2>還款紀錄</h2>
-            <span>{{ confirmedPaymentRecords(ledger.monthlyPayments).length }} 筆</span>
-          </div>
-
-          <p *ngIf="confirmedPaymentRecords(ledger.monthlyPayments).length === 0" class="empty">目前沒有已核准的還款紀錄。</p>
-
-          <article *ngFor="let payment of confirmedPaymentRecords(ledger.monthlyPayments); trackBy: trackById" class="request-card">
-            <div>
-              <h3>{{ paymentDebtTitle(payment, ledger.items) }}</h3>
-              <p>{{ money(payment.paidAmount) }}</p>
-              <small>還款日期：{{ paymentDateLabel(payment) }}</small>
-              <small>簽核日：{{ confirmedDateLabel(payment) }}</small>
-            </div>
-            <span class="status done">已入帳</span>
-          </article>
-        </section>
-
-        <section class="panel">
-          <div class="section-title">
             <h2>歷程紀錄</h2>
             <span>{{ ledger.actions.length }} 筆</span>
           </div>
