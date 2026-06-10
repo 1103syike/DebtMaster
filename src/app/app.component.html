@@ -1,0 +1,163 @@
+<main class="shell">
+  <section *ngIf="!role()" class="login">
+    <p class="eyebrow">DebtMaster</p>
+    <h1>今天是誰要記帳？</h1>
+    <p class="hint">選一次就會記住。選錯也可以回來重選。</p>
+
+    <div class="role-buttons">
+      <button class="primary" type="button" (click)="chooseRole('shuni')">我是淑尼</button>
+      <button class="secondary" type="button" (click)="chooseRole('chengen')">我是丞恩</button>
+    </div>
+  </section>
+
+  <ng-container *ngIf="role() && ledger$ | async as ledger">
+    <ng-container *ngIf="summary(ledger.items, ledger.monthlyPayments) as total">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">目前身份</p>
+          <h1>{{ roleName() }}</h1>
+        </div>
+        <button class="text-button" type="button" (click)="clearRole()">重選</button>
+      </header>
+
+      <section class="hero">
+        <p class="eyebrow">總欠款</p>
+        <strong>{{ money(total.remainingDebt) }}</strong>
+        <div class="hero-row">
+          <span>已還 {{ total.paidPercent }}%</span>
+          <span>已還 {{ money(total.totalPaid) }}</span>
+        </div>
+        <div class="progress">
+          <span [style.width.%]="total.paidPercent"></span>
+        </div>
+      </section>
+
+      <nav class="tabs" aria-label="主要功能">
+        <button type="button" [class.active]="view() === 'home'" (click)="view.set('home')">首頁</button>
+        <button type="button" [class.active]="view() === 'loan'" (click)="view.set('loan')">申請貸款</button>
+        <button type="button" [class.active]="view() === 'payment'" (click)="view.set('payment')">下月還款</button>
+      </nav>
+
+      <section *ngIf="view() === 'home'" class="stack">
+        <article *ngIf="total.nextPayment" class="notice">
+          <div>
+            <p class="eyebrow">{{ total.nextPayment.month }} 要還</p>
+            <strong>{{ money(total.nextPayment.plannedAmount) }}</strong>
+            <small *ngIf="total.nextPayment.status === 'paid'">已標記付款，等待淑尼確認收到。</small>
+            <small *ngIf="total.nextPayment.status === 'planned'">還沒標記已還。</small>
+          </div>
+          <button
+            *ngIf="role() === 'chengen' && total.nextPayment.status === 'planned'"
+            class="primary compact"
+            type="button"
+            (click)="markPaid(total.nextPayment)"
+          >
+            已還當月
+          </button>
+          <button
+            *ngIf="role() === 'shuni' && total.nextPayment.status === 'paid'"
+            class="primary compact"
+            type="button"
+            (click)="confirmPaid(total.nextPayment)"
+          >
+            確認收到
+          </button>
+        </article>
+
+        <section class="panel">
+          <div class="section-title">
+            <h2>每筆欠款</h2>
+            <span>{{ ledger.items.length }} 筆</span>
+          </div>
+
+          <p *ngIf="ledger.items.length === 0" class="empty">目前沒有欠款。申請貸款通過後會出現在這裡。</p>
+
+          <article *ngFor="let item of ledger.items; trackBy: trackById" class="item-card">
+            <div class="item-main">
+              <div>
+                <h3>{{ item.title }}</h3>
+                <p *ngIf="item.note">{{ item.note }}</p>
+              </div>
+              <strong>{{ money(item.totalAmount - item.paidAmount) }}</strong>
+            </div>
+            <div class="item-meta">
+              <span>已還 {{ percent(item.totalAmount, item.paidAmount) }}%</span>
+              <span>{{ money(item.paidAmount) }} / {{ money(item.totalAmount) }}</span>
+            </div>
+            <div class="progress small">
+              <span [style.width.%]="percent(item.totalAmount, item.paidAmount)"></span>
+            </div>
+          </article>
+        </section>
+
+        <section class="panel">
+          <div class="section-title">
+            <h2>待簽核</h2>
+            <span>{{ ledger.loanRequests.length }} 筆</span>
+          </div>
+
+          <p *ngIf="ledger.loanRequests.length === 0" class="empty">沒有新的貸款申請。</p>
+
+          <article *ngFor="let request of ledger.loanRequests; trackBy: trackById" class="request-card">
+            <div>
+              <h3>{{ request.title }}</h3>
+              <p>{{ money(request.amount) }}</p>
+              <small *ngIf="request.note">{{ request.note }}</small>
+            </div>
+            <span class="status" [class.done]="request.status !== 'pending'">
+              {{ request.status === 'pending' ? '等待簽核' : request.status === 'approved' ? '已核准' : '已退回' }}
+            </span>
+            <div *ngIf="role() === 'shuni' && request.status === 'pending'" class="actions">
+              <button class="primary compact" type="button" (click)="updateLoan(request, 'approved')">核准</button>
+              <button class="secondary compact" type="button" (click)="updateLoan(request, 'rejected')">退回</button>
+            </div>
+          </article>
+        </section>
+      </section>
+
+      <section *ngIf="view() === 'loan'" class="panel form-panel">
+        <h2>申請一筆新貸款</h2>
+        <form [formGroup]="loanForm" (ngSubmit)="submitLoan()">
+          <label>
+            名稱
+            <input formControlName="title" placeholder="例如：信用卡代墊">
+          </label>
+          <label>
+            金額
+            <input formControlName="amount" inputmode="numeric" type="number" min="1" placeholder="輸入金額">
+          </label>
+          <label>
+            備註
+            <textarea formControlName="note" placeholder="可不填"></textarea>
+          </label>
+          <button class="primary wide" type="submit">送出給淑尼簽核</button>
+        </form>
+      </section>
+
+      <section *ngIf="view() === 'payment'" class="panel form-panel">
+        <h2>設定下個月要還多少</h2>
+        <form [formGroup]="paymentForm" (ngSubmit)="setPlannedPayment()">
+          <label>
+            月份
+            <input formControlName="month" type="month">
+          </label>
+          <label>
+            要還金額
+            <input formControlName="plannedAmount" inputmode="numeric" type="number" min="1" placeholder="輸入金額">
+          </label>
+          <div class="quick-grid">
+            <button
+              *ngFor="let amount of quickAmounts"
+              class="secondary"
+              type="button"
+              (click)="setPlannedPayment(amount)"
+            >
+              {{ money(amount) }}
+            </button>
+          </div>
+          <button class="primary wide" type="submit">儲存還款計畫</button>
+        </form>
+      </section>
+    </ng-container>
+  </ng-container>
+</main>
