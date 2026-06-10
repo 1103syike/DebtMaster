@@ -1,8 +1,8 @@
 <main class="shell">
   <section *ngIf="!role()" class="login">
     <p class="eyebrow">DebtMaster</p>
-    <h1>今天是誰要記帳？</h1>
-    <p class="hint">選一次就會記住。選錯也可以回來重選。</p>
+    <h1>請選擇使用者</h1>
+    <p class="hint">系統會記住本次選擇，之後也可以隨時切換。</p>
 
     <div class="role-buttons">
       <button class="primary" type="button" (click)="chooseRole('shuni')">我是淑尼</button>
@@ -17,16 +17,16 @@
           <p class="eyebrow">目前身份</p>
           <h1>{{ roleName() }}</h1>
         </div>
-        <button class="text-button" type="button" (click)="clearRole()">重選</button>
+        <button class="text-button" type="button" (click)="clearRole()">切換</button>
       </header>
 
       <section class="hero">
-        <p class="eyebrow">總欠款</p>
+        <p class="eyebrow">未清償總額</p>
         <strong>{{ money(total.remainingDebt) }}</strong>
         <p *ngIf="total.remainingDebt === 0" class="settled">已結清</p>
         <div class="hero-row">
-          <span>已還 {{ total.paidPercent }}%</span>
-          <span>已還 {{ money(total.totalPaid) }}</span>
+          <span>已清償 {{ total.paidPercent }}%</span>
+          <span>已清償 {{ money(total.totalPaid) }}</span>
         </div>
         <div class="progress">
           <span [style.width.%]="total.paidPercent"></span>
@@ -49,7 +49,7 @@
       <section *ngIf="view() === 'home'" class="stack">
         <section *ngIf="pendingHomeCount(ledger.loanRequests, ledger.monthlyPayments) > 0" class="panel pending-panel">
           <div class="section-title">
-            <h2>待處理</h2>
+            <h2>待審核項目</h2>
             <span>{{ pendingHomeCount(ledger.loanRequests, ledger.monthlyPayments) }} 筆</span>
           </div>
 
@@ -57,12 +57,14 @@
             <div>
               <h3>{{ request.title }}</h3>
               <p>{{ money(request.amount) }}</p>
-              <small>申請日期：{{ loanDateLabel(request) }}</small>
+              <small>申請日：{{ loanDateLabel(request) }}</small>
             </div>
-            <span class="status">貸款等待簽核</span>
+            <span class="status">貸款待審核</span>
             <div *ngIf="role() === 'shuni'" class="actions">
-              <button class="primary compact" type="button" (click)="updateLoan(request, 'approved')">核准</button>
-              <button class="secondary compact" type="button" (click)="updateLoan(request, 'rejected')">退回</button>
+              <button class="primary compact" type="button" [disabled]="isBusy()" (click)="updateLoan(request, 'approved')">
+                {{ isBusy() ? '處理中' : '核准' }}
+              </button>
+              <button class="secondary compact" type="button" [disabled]="isBusy()" (click)="updateLoan(request, 'rejected')">退回</button>
             </div>
           </article>
 
@@ -72,20 +74,22 @@
               <p>{{ money(payment.paidAmount) }}</p>
               <small>還款日期：{{ paymentDateLabel(payment) }}</small>
             </div>
-            <span class="status">還款等待確認</span>
+            <span class="status">還款待確認</span>
             <div *ngIf="role() === 'shuni'" class="actions">
-              <button class="primary compact" type="button" (click)="confirmPaid(payment)">確認收到</button>
+              <button class="primary compact" type="button" [disabled]="isBusy()" (click)="confirmPaid(payment)">
+                {{ isBusy() ? '處理中' : '確認收到' }}
+              </button>
             </div>
           </article>
         </section>
 
         <section class="panel">
           <div class="section-title">
-            <h2>每筆欠款</h2>
+            <h2>未清償項目</h2>
             <span>{{ ledger.items.length }} 筆</span>
           </div>
 
-          <p *ngIf="ledger.items.length === 0" class="empty">目前沒有欠款。申請貸款通過後會出現在這裡。</p>
+          <p *ngIf="ledger.items.length === 0" class="empty">目前沒有未清償項目。</p>
 
           <article *ngFor="let item of ledger.items; trackBy: trackById" class="item-card">
             <div class="item-main">
@@ -96,7 +100,7 @@
               <strong>{{ money(item.totalAmount - item.paidAmount) }}</strong>
             </div>
             <div class="item-meta">
-              <span>已還 {{ percent(item.totalAmount, item.paidAmount) }}%</span>
+              <span>已清償 {{ percent(item.totalAmount, item.paidAmount) }}%</span>
               <span>{{ money(item.paidAmount) }} / {{ money(item.totalAmount) }}</span>
             </div>
             <div class="progress small">
@@ -121,9 +125,9 @@
       </section>
 
       <section *ngIf="view() === 'loan' && role() === 'chengen'" class="panel form-panel">
-        <h2>申請一筆新貸款</h2>
+        <h2>新增貸款申請</h2>
         <form [formGroup]="loanForm" (ngSubmit)="submitLoan()">
-          <p class="inline-note">送出後會自動記錄今天為申請日。</p>
+          <p class="inline-note">提交後系統會自動記錄申請日。</p>
           <label>
             名稱
             <input formControlName="title" placeholder="例如：信用卡代墊">
@@ -136,7 +140,9 @@
             備註
             <textarea formControlName="note" placeholder="可不填"></textarea>
           </label>
-          <button class="primary wide" type="submit">送出給淑尼簽核</button>
+          <button class="primary wide" type="submit" [disabled]="loanForm.invalid || isBusy()">
+            {{ isBusy() ? '提交中' : '提交申請' }}
+          </button>
         </form>
       </section>
 
@@ -152,33 +158,35 @@
           <div>
             <h3>{{ request.title }}</h3>
             <p>{{ money(request.amount) }}</p>
-            <small>申請日期：{{ loanDateLabel(request) }}</small>
+              <small>申請日：{{ loanDateLabel(request) }}</small>
             <small *ngIf="loanReviewText(request)">{{ loanReviewText(request) }}</small>
             <small *ngIf="request.note">{{ request.note }}</small>
           </div>
           <span class="status" [class.done]="request.status !== 'pending'">
-            {{ request.status === 'pending' ? '等待簽核' : request.status === 'approved' ? '已核准' : '已退回' }}
+            {{ request.status === 'pending' ? '待審核' : request.status === 'approved' ? '已核准' : '已退回' }}
           </span>
           <div *ngIf="request.status === 'pending'" class="actions">
-            <button class="primary compact" type="button" (click)="updateLoan(request, 'approved')">核准</button>
-            <button class="secondary compact" type="button" (click)="updateLoan(request, 'rejected')">退回</button>
+            <button class="primary compact" type="button" [disabled]="isBusy()" (click)="updateLoan(request, 'approved')">
+              {{ isBusy() ? '處理中' : '核准' }}
+            </button>
+            <button class="secondary compact" type="button" [disabled]="isBusy()" (click)="updateLoan(request, 'rejected')">退回</button>
           </div>
           <div *ngIf="canCorrectApprovedLoan(request, ledger.items)" class="actions">
-            <button class="secondary compact" type="button" (click)="updateLoan(request, 'rejected')">更正退回</button>
+            <button class="secondary compact" type="button" [disabled]="isBusy()" (click)="updateLoan(request, 'rejected')">更正退回</button>
           </div>
           <div *ngIf="request.status === 'rejected'" class="actions">
-            <button class="primary compact" type="button" (click)="updateLoan(request, 'approved')">更正核准</button>
+            <button class="primary compact" type="button" [disabled]="isBusy()" (click)="updateLoan(request, 'approved')">更正核准</button>
           </div>
         </article>
       </section>
 
       <section *ngIf="view() === 'payment' && role() === 'chengen'" class="panel form-panel">
-        <h2>送出還款申請</h2>
-        <p *ngIf="unpaidItems(ledger.items).length === 0" class="empty settled-empty">已結清，現在沒有需要還款的欠款項目。</p>
+        <h2>提交還款申請</h2>
+        <p *ngIf="unpaidItems(ledger.items).length === 0" class="empty settled-empty">目前沒有待清償項目。</p>
         <form *ngIf="unpaidItems(ledger.items).length > 0" [formGroup]="paymentForm" (ngSubmit)="setPlannedPayment()">
-          <p class="inline-note">送出後會自動記錄今天為還款日。</p>
+          <p class="inline-note">提交後系統會自動記錄還款日，待確認後入帳。</p>
           <div class="field">
-            <span class="field-label">針對哪筆欠款</span>
+            <span class="field-label">清償項目</span>
             <input formControlName="debtItemId" type="hidden">
             <div class="debt-options">
               <button
@@ -189,15 +197,15 @@
                 (click)="selectDebtItem(item)"
               >
                 <span>{{ item.title }}</span>
-                <strong>剩 {{ money(item.totalAmount - item.paidAmount) }}</strong>
+                <strong>待清償 {{ money(item.totalAmount - item.paidAmount) }}</strong>
               </button>
             </div>
             <small *ngIf="paymentForm.controls.debtItemId.invalid && paymentForm.controls.debtItemId.touched" class="field-error">
-              請先選擇要還哪一筆。
+              請先選擇清償項目。
             </small>
           </div>
           <label>
-            要還金額
+            還款金額
             <input formControlName="plannedAmount" inputmode="numeric" type="number" min="1" placeholder="輸入金額">
           </label>
           <div class="quick-grid">
@@ -210,7 +218,9 @@
               {{ money(amount) }}
             </button>
           </div>
-          <button class="primary wide" type="submit" [disabled]="paymentForm.invalid">送出還款申請</button>
+          <button class="primary wide" type="submit" [disabled]="paymentForm.invalid || isBusy()">
+            {{ isBusy() ? '提交中' : '提交還款申請' }}
+          </button>
         </form>
       </section>
 
@@ -231,10 +241,12 @@
           </div>
           <span class="status" [class.done]="payment.status === 'confirmed'">{{ paymentStatusText(payment) }}</span>
           <div *ngIf="payment.status === 'paid'" class="actions">
-            <button class="primary compact" type="button" (click)="confirmPaid(payment)">確認收到</button>
+            <button class="primary compact" type="button" [disabled]="isBusy()" (click)="confirmPaid(payment)">
+              {{ isBusy() ? '處理中' : '確認收到' }}
+            </button>
           </div>
           <div *ngIf="payment.status === 'confirmed'" class="actions">
-            <button class="secondary compact" type="button" (click)="unconfirmPaid(payment)">更正未收到</button>
+            <button class="secondary compact" type="button" [disabled]="isBusy()" (click)="unconfirmPaid(payment)">更正未收到</button>
           </div>
         </article>
       </section>

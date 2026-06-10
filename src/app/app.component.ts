@@ -15,6 +15,7 @@ import { DebtItem, LedgerAction, LoanRequest, MonthlyPayment, UserRole } from '.
 export class AppComponent {
   readonly role = signal<UserRole | null>((localStorage.getItem('debt-master-role') as UserRole | null) ?? null);
   readonly view = signal<'home' | 'loan' | 'payment' | 'settings'>('home');
+  readonly isBusy = signal(false);
   readonly ledger$ = this.ledgerService.ledger$;
   readonly currentMonth = new Date().toISOString().slice(0, 7);
 
@@ -71,13 +72,15 @@ export class AppComponent {
       this.loanForm.markAllAsTouched();
       return;
     }
-    await this.ledgerService.requestLoan(this.loanForm.getRawValue());
-    this.loanForm.reset({ title: '', amount: 0, note: '' });
-    this.view.set('home');
+    await this.runAction(async () => {
+      await this.ledgerService.requestLoan(this.loanForm.getRawValue());
+      this.loanForm.reset({ title: '', amount: 0, note: '' });
+      this.view.set('home');
+    });
   }
 
   async updateLoan(request: LoanRequest, status: 'approved' | 'rejected'): Promise<void> {
-    await this.ledgerService.updateLoanStatus(request.id, status);
+    await this.runAction(() => this.ledgerService.updateLoanStatus(request.id, status));
   }
 
   setQuickAmount(amount: number): void {
@@ -89,21 +92,23 @@ export class AppComponent {
       this.paymentForm.markAllAsTouched();
       return;
     }
-    await this.ledgerService.setMonthlyPayment(this.paymentForm.getRawValue());
-    this.paymentForm.reset({ debtItemId: '', plannedAmount: 0 });
-    this.view.set('home');
+    await this.runAction(async () => {
+      await this.ledgerService.setMonthlyPayment(this.paymentForm.getRawValue());
+      this.paymentForm.reset({ debtItemId: '', plannedAmount: 0 });
+      this.view.set('home');
+    });
   }
 
   async markPaid(payment: MonthlyPayment): Promise<void> {
-    await this.ledgerService.markMonthlyPaymentPaid(payment.id);
+    await this.runAction(() => this.ledgerService.markMonthlyPaymentPaid(payment.id));
   }
 
   async confirmPaid(payment: MonthlyPayment): Promise<void> {
-    await this.ledgerService.confirmMonthlyPayment(payment.id);
+    await this.runAction(() => this.ledgerService.confirmMonthlyPayment(payment.id));
   }
 
   async unconfirmPaid(payment: MonthlyPayment): Promise<void> {
-    await this.ledgerService.unconfirmMonthlyPayment(payment.id);
+    await this.runAction(() => this.ledgerService.unconfirmMonthlyPayment(payment.id));
   }
 
   trackById(_: number, item: { id: string }): string {
@@ -299,6 +304,18 @@ export class AppComponent {
       return 1;
     }
     return 2;
+  }
+
+  private async runAction(action: () => Promise<void>): Promise<void> {
+    if (this.isBusy()) {
+      return;
+    }
+    this.isBusy.set(true);
+    try {
+      await action();
+    } finally {
+      this.isBusy.set(false);
+    }
   }
 
 }
