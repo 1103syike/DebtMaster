@@ -15,6 +15,7 @@ export interface LoanRequest {
   id: string;
   title: string;
   amount: number;
+  requestDate?: string;
   note?: string;
   status: LoanStatus;
   createdAt: number;

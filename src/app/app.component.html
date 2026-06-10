@@ -102,6 +102,7 @@
             <div>
               <h3>{{ request.title }}</h3>
               <p>{{ money(request.amount) }}</p>
+              <small>申請日期：{{ loanDateLabel(request) }}</small>
               <small *ngIf="request.note">{{ request.note }}</small>
             </div>
             <span class="status" [class.done]="request.status !== 'pending'">
@@ -118,6 +119,10 @@
       <section *ngIf="view() === 'loan' && role() === 'chengen'" class="panel form-panel">
         <h2>申請一筆新貸款</h2>
         <form [formGroup]="loanForm" (ngSubmit)="submitLoan()">
+          <label>
+            申請日期
+            <input formControlName="requestDate" type="date" [max]="today()">
+          </label>
           <label>
             名稱
             <input formControlName="title" placeholder="例如：信用卡代墊">
@@ -146,6 +151,7 @@
           <div>
             <h3>{{ request.title }}</h3>
             <p>{{ money(request.amount) }}</p>
+            <small>申請日期：{{ loanDateLabel(request) }}</small>
             <small *ngIf="request.note">{{ request.note }}</small>
           </div>
           <span class="status">等待簽核</span>
