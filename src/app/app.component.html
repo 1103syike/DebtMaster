@@ -35,13 +35,13 @@
       <nav class="tabs" aria-label="主要功能">
         <button type="button" [class.active]="view() === 'home'" (click)="view.set('home')">首頁</button>
         <button type="button" [class.active]="view() === 'loan'" (click)="view.set('loan')">申請貸款</button>
-        <button type="button" [class.active]="view() === 'payment'" (click)="view.set('payment')">下月還款</button>
+        <button type="button" [class.active]="view() === 'payment'" (click)="view.set('payment')">還款計畫</button>
       </nav>
 
       <section *ngIf="view() === 'home'" class="stack">
         <article *ngIf="total.nextPayment" class="notice">
           <div>
-            <p class="eyebrow">{{ total.nextPayment.month }} 要還</p>
+            <p class="eyebrow">{{ paymentDateLabel(total.nextPayment) }} 要還</p>
             <strong>{{ money(total.nextPayment.plannedAmount) }}</strong>
             <small *ngIf="total.nextPayment.status === 'paid'">已標記付款，等待淑尼確認收到。</small>
             <small *ngIf="total.nextPayment.status === 'planned'">還沒標記已還。</small>
@@ -135,11 +135,11 @@
       </section>
 
       <section *ngIf="view() === 'payment'" class="panel form-panel">
-        <h2>設定下個月要還多少</h2>
+        <h2>設定還款日期與金額</h2>
         <form [formGroup]="paymentForm" (ngSubmit)="setPlannedPayment()">
           <label>
-            月份
-            <input formControlName="month" type="month">
+            還款日期
+            <input formControlName="dueDate" type="date">
           </label>
           <label>
             要還金額

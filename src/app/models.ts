@@ -23,6 +23,7 @@ export interface LoanRequest {
 export interface MonthlyPayment {
   id: string;
   month: string;
+  dueDate?: string;
   plannedAmount: number;
   paidAmount: number;
   status: PaymentStatus;

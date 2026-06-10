@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
-import { Firestore, doc, docData, runTransaction } from '@angular/fire/firestore';
-import { Observable, map } from 'rxjs';
+import { getAuth, signInAnonymously } from 'firebase/auth';
+import { doc, getFirestore, onSnapshot, runTransaction } from 'firebase/firestore';
+import { Observable, defer, from, switchMap } from 'rxjs';
 
 import { DebtItem, Ledger, LoanRequest, MonthlyPayment, Summary } from './models';
 
@@ -15,20 +16,29 @@ const EMPTY_LEDGER: Ledger = {
 
 @Injectable({ providedIn: 'root' })
 export class LedgerService {
+  private readonly auth = getAuth();
+  private readonly firestore = getFirestore();
   private readonly ledgerRef = doc(this.firestore, `ledgers/${LEDGER_ID}`);
 
-  readonly ledger$: Observable<Ledger> = docData(this.ledgerRef).pipe(
-    map((ledger) => ({ ...EMPTY_LEDGER, ...(ledger as Ledger | undefined) })),
+  readonly ledger$: Observable<Ledger> = defer(() => from(this.ensureSession())).pipe(
+    switchMap(
+      () =>
+        new Observable<Ledger>((subscriber) =>
+          onSnapshot(
+            this.ledgerRef,
+            (snapshot) => subscriber.next({ ...EMPTY_LEDGER, ...(snapshot.data() as Ledger | undefined) }),
+            (error) => subscriber.error(error),
+          ),
+        ),
+    ),
   );
-
-  constructor(private readonly firestore: Firestore) {}
 
   summary(items: DebtItem[], monthlyPayments: MonthlyPayment[]): Summary {
     const totalDebt = items.reduce((sum, item) => sum + item.totalAmount, 0);
     const totalPaid = items.reduce((sum, item) => sum + item.paidAmount, 0);
     const nextPayment = [...monthlyPayments]
       .filter((payment) => payment.status !== 'confirmed')
-      .sort((a, b) => a.month.localeCompare(b.month))[0];
+      .sort((a, b) => (a.dueDate ?? a.month).localeCompare(b.dueDate ?? b.month))[0];
 
     return {
       totalDebt,
@@ -84,15 +94,17 @@ export class LedgerService {
     });
   }
 
-  async setMonthlyPayment(input: { month: string; plannedAmount: number }): Promise<void> {
+  async setMonthlyPayment(input: { dueDate: string; plannedAmount: number }): Promise<void> {
     await this.update((ledger) => {
       const plannedAmount = Number(input.plannedAmount);
-      const existing = ledger.monthlyPayments.find((payment) => payment.month === input.month);
+      const month = input.dueDate.slice(0, 7);
+      const existing = ledger.monthlyPayments.find((payment) => (payment.dueDate ?? payment.month) === input.dueDate);
       const payment: MonthlyPayment = existing
-        ? { ...existing, plannedAmount }
+        ? { ...existing, month, dueDate: input.dueDate, plannedAmount }
         : {
             id: crypto.randomUUID(),
-            month: input.month,
+            month,
+            dueDate: input.dueDate,
             plannedAmount,
             paidAmount: 0,
             status: 'planned',
@@ -155,10 +167,18 @@ export class LedgerService {
   }
 
   private async update(mutator: (ledger: Ledger) => Ledger): Promise<void> {
+    await this.ensureSession();
+
     await runTransaction(this.firestore, async (transaction) => {
       const snapshot = await transaction.get(this.ledgerRef);
       const current = { ...EMPTY_LEDGER, ...(snapshot.data() as Ledger | undefined) };
       transaction.set(this.ledgerRef, { ...mutator(current), updatedAt: Date.now() });
     });
+  }
+
+  private async ensureSession(): Promise<void> {
+    if (!this.auth.currentUser) {
+      await signInAnonymously(this.auth);
+    }
   }
 }
