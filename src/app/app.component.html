@@ -23,6 +23,7 @@
       <section class="hero">
         <p class="eyebrow">總欠款</p>
         <strong>{{ money(total.remainingDebt) }}</strong>
+        <p *ngIf="total.remainingDebt === 0" class="settled">已結清</p>
         <div class="hero-row">
           <span>已還 {{ total.paidPercent }}%</span>
           <span>已還 {{ money(total.totalPaid) }}</span>
@@ -43,6 +44,7 @@
           <div>
             <p class="eyebrow">{{ paymentDateLabel(total.nextPayment) }} 要還</p>
             <strong>{{ money(total.nextPayment.plannedAmount) }}</strong>
+            <small>針對：{{ paymentDebtTitle(total.nextPayment, ledger.items) }}</small>
             <small *ngIf="total.nextPayment.status === 'paid'">已標記付款，等待淑尼確認收到。</small>
             <small *ngIf="total.nextPayment.status === 'planned'">還沒標記已還。</small>
           </div>
@@ -164,10 +166,20 @@
 
       <section *ngIf="view() === 'payment'" class="panel form-panel">
         <h2>設定還款日期與金額</h2>
-        <form [formGroup]="paymentForm" (ngSubmit)="setPlannedPayment()">
+        <p *ngIf="unpaidItems(ledger.items).length === 0" class="empty settled-empty">已結清，現在沒有需要還款的欠款項目。</p>
+        <form *ngIf="unpaidItems(ledger.items).length > 0" [formGroup]="paymentForm" (ngSubmit)="setPlannedPayment()">
           <label>
             還款日期
             <input formControlName="dueDate" type="date">
+          </label>
+          <label>
+            針對哪筆欠款
+            <select formControlName="debtItemId">
+              <option value="" disabled>請選擇欠款項目</option>
+              <option *ngFor="let item of unpaidItems(ledger.items); trackBy: trackById" [value]="item.id">
+                {{ item.title }}（剩 {{ money(item.totalAmount - item.paidAmount) }}）
+              </option>
+            </select>
           </label>
           <label>
             要還金額

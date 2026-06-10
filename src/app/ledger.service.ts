@@ -95,17 +95,23 @@ export class LedgerService {
     });
   }
 
-  async setMonthlyPayment(input: { dueDate: string; plannedAmount: number }): Promise<void> {
+  async setMonthlyPayment(input: { dueDate: string; debtItemId: string; plannedAmount: number }): Promise<void> {
     await this.update((ledger) => {
       const plannedAmount = Number(input.plannedAmount);
       const month = input.dueDate.slice(0, 7);
-      const existing = ledger.monthlyPayments.find((payment) => (payment.dueDate ?? payment.month) === input.dueDate);
+      const existing = ledger.monthlyPayments.find(
+        (payment) =>
+          (payment.dueDate ?? payment.month) === input.dueDate &&
+          (payment.debtItemId ?? '') === input.debtItemId &&
+          payment.status === 'planned',
+      );
       const payment: MonthlyPayment = existing
-        ? { ...existing, month, dueDate: input.dueDate, plannedAmount }
+        ? { ...existing, month, dueDate: input.dueDate, debtItemId: input.debtItemId, plannedAmount }
         : {
             id: crypto.randomUUID(),
             month,
             dueDate: input.dueDate,
+            debtItemId: input.debtItemId,
             plannedAmount,
             paidAmount: 0,
             status: 'planned',
@@ -136,22 +142,19 @@ export class LedgerService {
         return ledger;
       }
 
-      const remainingPayment = payment.paidAmount;
-      const allocation = ledger.items.reduce(
-        (state, item) => {
-          const unpaid = Math.max(0, item.totalAmount - item.paidAmount);
-          const applied = Math.min(state.remaining, unpaid);
-          return {
-            remaining: state.remaining - applied,
-            items: [...state.items, { ...item, paidAmount: item.paidAmount + applied }],
-          };
-        },
-        { remaining: remainingPayment, items: [] as DebtItem[] },
-      );
+      const items = payment.debtItemId
+        ? ledger.items.map((item) => {
+            if (item.id !== payment.debtItemId) {
+              return item;
+            }
+            const unpaid = Math.max(0, item.totalAmount - item.paidAmount);
+            return { ...item, paidAmount: item.paidAmount + Math.min(payment.paidAmount, unpaid) };
+          })
+        : this.allocatePaymentToOldestItems(ledger.items, payment.paidAmount);
 
       return {
         ...ledger,
-        items: allocation.items,
+        items,
         monthlyPayments: ledger.monthlyPayments.map((item) =>
           item.id === id ? { ...item, status: 'confirmed', confirmedAt: Date.now() } : item,
         ),
@@ -182,5 +185,19 @@ export class LedgerService {
     if (!this.auth.currentUser) {
       await signInAnonymously(this.auth);
     }
+  }
+
+  private allocatePaymentToOldestItems(items: DebtItem[], amount: number): DebtItem[] {
+    return items.reduce(
+      (state, item) => {
+        const unpaid = Math.max(0, item.totalAmount - item.paidAmount);
+        const applied = Math.min(state.remaining, unpaid);
+        return {
+          remaining: state.remaining - applied,
+          items: [...state.items, { ...item, paidAmount: item.paidAmount + applied }],
+        };
+      },
+      { remaining: amount, items: [] as DebtItem[] },
+    ).items;
   }
 }

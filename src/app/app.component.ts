@@ -27,6 +27,7 @@ export class AppComponent {
 
   readonly paymentForm = this.fb.nonNullable.group({
     dueDate: [this.nextMonthDate(), [Validators.required]],
+    debtItemId: ['', [Validators.required]],
     plannedAmount: [0, [Validators.required, Validators.min(1)]],
   });
 
@@ -108,8 +109,16 @@ export class AppComponent {
     return payment.dueDate ?? payment.month;
   }
 
+  paymentDebtTitle(payment: MonthlyPayment, items: DebtItem[]): string {
+    return items.find((item) => item.id === payment.debtItemId)?.title ?? '未指定欠款';
+  }
+
   loanDateLabel(request: LoanRequest): string {
     return request.requestDate ?? new Date(request.createdAt).toISOString().slice(0, 10);
+  }
+
+  unpaidItems(items: DebtItem[]): DebtItem[] {
+    return items.filter((item) => item.totalAmount > item.paidAmount);
   }
 
   pendingLoanRequests(requests: LoanRequest[]): LoanRequest[] {

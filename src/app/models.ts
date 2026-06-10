@@ -25,6 +25,7 @@ export interface MonthlyPayment {
   id: string;
   month: string;
   dueDate?: string;
+  debtItemId?: string;
   plannedAmount: number;
   paidAmount: number;
   status: PaymentStatus;
