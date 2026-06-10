@@ -4,6 +4,7 @@ export type PaymentStatus = 'planned' | 'paid' | 'confirmed';
 
 export interface DebtItem {
   id: string;
+  loanRequestId?: string;
   title: string;
   totalAmount: number;
   paidAmount: number;
@@ -36,10 +37,18 @@ export interface MonthlyPayment {
   confirmedAt?: number;
 }
 
+export interface LedgerAction {
+  id: string;
+  actor: UserRole;
+  text: string;
+  createdAt: number;
+}
+
 export interface Ledger {
   items: DebtItem[];
   loanRequests: LoanRequest[];
   monthlyPayments: MonthlyPayment[];
+  actions: LedgerAction[];
   updatedAt: number;
 }
 

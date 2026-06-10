@@ -3,7 +3,7 @@ import { Component, computed, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 
 import { LedgerService } from './ledger.service';
-import { DebtItem, LoanRequest, MonthlyPayment, UserRole } from './models';
+import { DebtItem, LedgerAction, LoanRequest, MonthlyPayment, UserRole } from './models';
 
 @Component({
   selector: 'app-root',
@@ -26,15 +26,14 @@ export class AppComponent {
   });
 
   readonly paymentForm = this.fb.nonNullable.group({
-    dueDate: [this.nextMonthDate(), [Validators.required]],
     debtItemId: ['', [Validators.required]],
     plannedAmount: [0, [Validators.required, Validators.min(1)]],
   });
 
   readonly quickAmounts = [1000, 3000, 5000, 10000];
   readonly roleName = computed(() => (this.role() === 'shuni' ? '淑尼' : '丞恩'));
-  readonly loanTabLabel = computed(() => (this.role() === 'shuni' ? '貸款簽核' : '申請貸款'));
-  readonly paymentTabLabel = computed(() => (this.role() === 'shuni' ? '還款簽核' : '還款申請'));
+  readonly loanTabLabel = computed(() => (this.role() === 'shuni' ? '貸款紀錄' : '申請貸款'));
+  readonly paymentTabLabel = computed(() => (this.role() === 'shuni' ? '還款紀錄' : '還款申請'));
 
   constructor(
     private readonly fb: FormBuilder,
@@ -82,16 +81,17 @@ export class AppComponent {
     await this.ledgerService.updateLoanStatus(request.id, status);
   }
 
-  async setPlannedPayment(amount?: number): Promise<void> {
-    if (amount) {
-      this.paymentForm.patchValue({ plannedAmount: amount });
-    }
+  setQuickAmount(amount: number): void {
+    this.paymentForm.patchValue({ plannedAmount: amount });
+  }
+
+  async setPlannedPayment(): Promise<void> {
     if (this.paymentForm.invalid) {
       this.paymentForm.markAllAsTouched();
       return;
     }
     await this.ledgerService.setMonthlyPayment(this.paymentForm.getRawValue());
-    this.paymentForm.reset({ dueDate: this.nextMonthDate(), debtItemId: '', plannedAmount: 0 });
+    this.paymentForm.reset({ debtItemId: '', plannedAmount: 0 });
     this.view.set('home');
   }
 
@@ -103,6 +103,10 @@ export class AppComponent {
     await this.ledgerService.confirmMonthlyPayment(payment.id);
   }
 
+  async unconfirmPaid(payment: MonthlyPayment): Promise<void> {
+    await this.ledgerService.unconfirmMonthlyPayment(payment.id);
+  }
+
   trackById(_: number, item: { id: string }): string {
     return item.id;
   }
@@ -111,8 +115,20 @@ export class AppComponent {
     return payment.dueDate ?? payment.month;
   }
 
+  paymentNoticeTitle(payment: MonthlyPayment): string {
+    return payment.status === 'paid' ? '等待淑尼確認' : `${this.paymentDateLabel(payment)} 要還`;
+  }
+
   paymentDebtTitle(payment: MonthlyPayment, items: DebtItem[]): string {
     return items.find((item) => item.id === payment.debtItemId)?.title ?? '未指定欠款';
+  }
+
+  selectedDebtItemId(): string {
+    return this.paymentForm.controls.debtItemId.value;
+  }
+
+  selectDebtItem(item: DebtItem): void {
+    this.paymentForm.patchValue({ debtItemId: item.id });
   }
 
   loanDateLabel(request: LoanRequest): string {
@@ -134,6 +150,11 @@ export class AppComponent {
     return '';
   }
 
+  canCorrectApprovedLoan(request: LoanRequest, items: DebtItem[]): boolean {
+    const linkedItem = items.find((item) => item.loanRequestId === request.id);
+    return request.status === 'approved' && !!linkedItem && linkedItem.paidAmount === 0;
+  }
+
   confirmedDateLabel(payment: MonthlyPayment): string {
     return payment.confirmedAt ? this.dateLabel(payment.confirmedAt) : '';
   }
@@ -148,24 +169,70 @@ export class AppComponent {
       .sort((a, b) => (a.dueDate ?? a.month).localeCompare(b.dueDate ?? b.month));
   }
 
+  pendingHomeCount(requests: LoanRequest[], payments: MonthlyPayment[]): number {
+    return this.pendingLoanRequests(requests).length + this.pendingPaymentRequests(payments).length;
+  }
+
   confirmedPaymentRecords(payments: MonthlyPayment[]): MonthlyPayment[] {
     return payments
       .filter((payment) => payment.status === 'confirmed')
       .sort((a, b) => (b.confirmedAt ?? 0) - (a.confirmedAt ?? 0));
   }
 
+  paymentRecords(payments: MonthlyPayment[]): MonthlyPayment[] {
+    return [...payments].sort((a, b) => {
+      const statusOrder = this.paymentStatusOrder(a.status) - this.paymentStatusOrder(b.status);
+      if (statusOrder !== 0) {
+        return statusOrder;
+      }
+      return (b.confirmedAt ?? b.paidAt ?? 0) - (a.confirmedAt ?? a.paidAt ?? 0);
+    });
+  }
+
+  paymentStatusText(payment: MonthlyPayment): string {
+    if (payment.status === 'paid') {
+      return '等待確認';
+    }
+    if (payment.status === 'confirmed') {
+      return '已入帳';
+    }
+    return '尚未送出';
+  }
+
+  currentPeriodLabel(item: DebtItem): string {
+    const { start, end } = this.currentPeriod(item);
+    return `${this.shortDate(start)}-${this.shortDate(end)}`;
+  }
+
+  paidInCurrentPeriod(item: DebtItem, payments: MonthlyPayment[]): number {
+    const { startKey, endKey } = this.currentPeriod(item);
+    return payments
+      .filter((payment) => {
+        const paymentDate = payment.dueDate ?? payment.month;
+        return payment.status === 'confirmed' && payment.debtItemId === item.id && paymentDate >= startKey && paymentDate <= endKey;
+      })
+      .reduce((sum, payment) => sum + payment.paidAmount, 0);
+  }
+
   pendingLoanRequests(requests: LoanRequest[]): LoanRequest[] {
     return requests.filter((request) => request.status === 'pending');
   }
 
-  today(): string {
-    return new Date().toISOString().slice(0, 10);
+  actionRecords(actions: LedgerAction[]): LedgerAction[] {
+    return [...actions].sort((a, b) => b.createdAt - a.createdAt);
   }
 
-  private nextMonthDate(): string {
-    const date = new Date();
-    date.setMonth(date.getMonth() + 1);
-    return date.toISOString().slice(0, 10);
+  actionTimeLabel(action: LedgerAction): string {
+    return new Intl.DateTimeFormat('zh-TW', {
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(new Date(action.createdAt));
+  }
+
+  today(): string {
+    return this.dateLabel(Date.now());
   }
 
   private dateLabel(timestamp: number): string {
@@ -174,6 +241,38 @@ export class AppComponent {
       month: '2-digit',
       day: '2-digit',
     }).format(new Date(timestamp));
+  }
+
+  private currentPeriod(item: DebtItem): { start: Date; end: Date; startKey: string; endKey: string } {
+    const anchor = new Date(item.createdAt);
+    const today = new Date();
+    const start = new Date(today.getFullYear(), today.getMonth(), anchor.getDate());
+    if (today < start) {
+      start.setMonth(start.getMonth() - 1);
+    }
+    const end = new Date(start);
+    end.setMonth(end.getMonth() + 1);
+
+    return {
+      start,
+      end,
+      startKey: this.dateLabel(start.getTime()),
+      endKey: this.dateLabel(end.getTime()),
+    };
+  }
+
+  private shortDate(date: Date): string {
+    return `${date.getMonth() + 1}/${date.getDate()}`;
+  }
+
+  private paymentStatusOrder(status: MonthlyPayment['status']): number {
+    if (status === 'paid') {
+      return 0;
+    }
+    if (status === 'planned') {
+      return 1;
+    }
+    return 2;
   }
 
 }

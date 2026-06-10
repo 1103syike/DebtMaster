@@ -3,7 +3,7 @@ import { getAuth, signInAnonymously } from 'firebase/auth';
 import { doc, getFirestore, onSnapshot, runTransaction } from 'firebase/firestore';
 import { Observable, defer, from, switchMap } from 'rxjs';
 
-import { DebtItem, Ledger, LoanRequest, MonthlyPayment, Summary } from './models';
+import { DebtItem, Ledger, LoanRequest, MonthlyPayment, Summary, UserRole } from './models';
 
 const LEDGER_ID = 'family-ledger';
 
@@ -11,6 +11,7 @@ const EMPTY_LEDGER: Ledger = {
   items: [],
   loanRequests: [],
   monthlyPayments: [],
+  actions: [],
   updatedAt: 0,
 };
 
@@ -50,21 +51,22 @@ export class LedgerService {
   }
 
   async requestLoan(input: { requestDate: string; title: string; amount: number; note: string }): Promise<void> {
-    await this.update((ledger) => ({
-      ...ledger,
-      loanRequests: [
-        this.cleanLoanRequest({
-          id: crypto.randomUUID(),
-          title: input.title,
-          amount: Number(input.amount),
-          requestDate: input.requestDate,
-          note: input.note,
-          status: 'pending',
-          createdAt: Date.now(),
-        }),
-        ...ledger.loanRequests,
-      ],
-    }));
+    await this.update((ledger) => {
+      const request = this.cleanLoanRequest({
+        id: crypto.randomUUID(),
+        title: input.title,
+        amount: Number(input.amount),
+        requestDate: input.requestDate,
+        note: input.note,
+        status: 'pending',
+        createdAt: Date.now(),
+      });
+
+      return {
+        ...this.addAction(ledger, 'chengen', `丞恩申請貸款 ${this.formatMoney(request.amount)}`),
+        loanRequests: [request, ...ledger.loanRequests],
+      };
+    });
   }
 
   async updateLoanStatus(id: string, status: 'approved' | 'rejected'): Promise<void> {
@@ -74,25 +76,27 @@ export class LedgerService {
         return ledger;
       }
       const reviewedAt = Date.now();
+      const isCorrection = request.status !== 'pending' && request.status !== status;
 
       return {
-        ...ledger,
+        ...this.addAction(
+          ledger,
+          'shuni',
+          status === 'approved'
+            ? `${isCorrection ? '淑尼更正為核准貸款' : '淑尼核准貸款'} ${this.formatMoney(request.amount)}`
+            : `${isCorrection ? '淑尼更正為退回貸款' : '淑尼退回貸款'} ${this.formatMoney(request.amount)}`,
+        ),
         loanRequests: ledger.loanRequests.map((item) =>
-          item.id === id
-            ? {
-                ...item,
-                status,
-                reviewedAt,
-                approvedAt: status === 'approved' ? reviewedAt : item.approvedAt,
-                rejectedAt: status === 'rejected' ? reviewedAt : item.rejectedAt,
-              }
-            : item,
+          item.id === id ? this.reviewedLoanRequest(item, status, reviewedAt) : item,
         ),
         items:
           status === 'approved'
-            ? [
+            ? ledger.items.some((item) => item.loanRequestId === request.id)
+              ? ledger.items
+              : [
                 {
                   id: crypto.randomUUID(),
+                  loanRequestId: request.id,
                   title: request.title,
                   totalAmount: request.amount,
                   paidAmount: 0,
@@ -101,18 +105,19 @@ export class LedgerService {
                 },
                 ...ledger.items,
               ]
-            : ledger.items,
+            : ledger.items.filter((item) => item.loanRequestId !== request.id || item.paidAmount > 0),
       };
     });
   }
 
-  async setMonthlyPayment(input: { dueDate: string; debtItemId: string; plannedAmount: number }): Promise<void> {
+  async setMonthlyPayment(input: { debtItemId: string; plannedAmount: number }): Promise<void> {
     await this.update((ledger) => {
       const plannedAmount = Number(input.plannedAmount);
-      const month = input.dueDate.slice(0, 7);
+      const dueDate = this.today();
+      const month = dueDate.slice(0, 7);
       const existing = ledger.monthlyPayments.find(
         (payment) =>
-          (payment.dueDate ?? payment.month) === input.dueDate &&
+          (payment.dueDate ?? payment.month) === dueDate &&
           (payment.debtItemId ?? '') === input.debtItemId &&
           payment.status === 'paid',
       );
@@ -120,7 +125,7 @@ export class LedgerService {
         ? {
             ...existing,
             month,
-            dueDate: input.dueDate,
+            dueDate,
             debtItemId: input.debtItemId,
             plannedAmount,
             paidAmount: plannedAmount,
@@ -129,7 +134,7 @@ export class LedgerService {
         : {
             id: crypto.randomUUID(),
             month,
-            dueDate: input.dueDate,
+            dueDate,
             debtItemId: input.debtItemId,
             plannedAmount,
             paidAmount: plannedAmount,
@@ -138,7 +143,7 @@ export class LedgerService {
           };
 
       return {
-        ...ledger,
+        ...this.addAction(ledger, 'chengen', `丞恩還款 ${this.formatMoney(plannedAmount)}`),
         monthlyPayments: [payment, ...ledger.monthlyPayments.filter((item) => item.id !== payment.id)],
       };
     });
@@ -173,11 +178,40 @@ export class LedgerService {
         : this.allocatePaymentToOldestItems(ledger.items, payment.paidAmount);
 
       return {
-        ...ledger,
+        ...this.addAction(ledger, 'shuni', `淑尼已收到 ${this.formatMoney(payment.paidAmount)}`),
         items,
         monthlyPayments: ledger.monthlyPayments.map((item) =>
           item.id === id ? { ...item, status: 'confirmed', confirmedAt: Date.now() } : item,
         ),
+      };
+    });
+  }
+
+  async unconfirmMonthlyPayment(id: string): Promise<void> {
+    await this.update((ledger) => {
+      const payment = ledger.monthlyPayments.find((item) => item.id === id);
+      if (!payment || payment.status !== 'confirmed') {
+        return ledger;
+      }
+
+      const items = payment.debtItemId
+        ? ledger.items.map((item) =>
+            item.id === payment.debtItemId
+              ? { ...item, paidAmount: Math.max(0, item.paidAmount - payment.paidAmount) }
+              : item,
+          )
+        : ledger.items;
+
+      return {
+        ...this.addAction(ledger, 'shuni', `淑尼已更正未收到 ${this.formatMoney(payment.paidAmount)}`),
+        items,
+        monthlyPayments: ledger.monthlyPayments.map((item) => {
+          if (item.id !== id) {
+            return item;
+          }
+          const { confirmedAt, ...pendingPayment } = item;
+          return { ...pendingPayment, status: 'paid' };
+        }),
       };
     });
   }
@@ -188,6 +222,16 @@ export class LedgerService {
       title: request.title.trim(),
       requestDate: request.requestDate,
       note: request.note?.trim(),
+    };
+  }
+
+  private reviewedLoanRequest(request: LoanRequest, status: 'approved' | 'rejected', reviewedAt: number): LoanRequest {
+    const { approvedAt, rejectedAt, ...base } = request;
+    return {
+      ...base,
+      status,
+      reviewedAt,
+      ...(status === 'approved' ? { approvedAt: reviewedAt } : { rejectedAt: reviewedAt }),
     };
   }
 
@@ -205,6 +249,37 @@ export class LedgerService {
     if (!this.auth.currentUser) {
       await signInAnonymously(this.auth);
     }
+  }
+
+  private today(): string {
+    return new Intl.DateTimeFormat('sv-SE', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date());
+  }
+
+  private addAction(ledger: Ledger, actor: UserRole, text: string): Ledger {
+    return {
+      ...ledger,
+      actions: [
+        {
+          id: crypto.randomUUID(),
+          actor,
+          text,
+          createdAt: Date.now(),
+        },
+        ...ledger.actions,
+      ],
+    };
+  }
+
+  private formatMoney(value: number): string {
+    return new Intl.NumberFormat('zh-TW', {
+      style: 'currency',
+      currency: 'TWD',
+      maximumFractionDigits: 0,
+    }).format(value);
   }
 
   private allocatePaymentToOldestItems(items: DebtItem[], amount: number): DebtItem[] {
