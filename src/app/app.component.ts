@@ -31,6 +31,7 @@ export class AppComponent {
 
   readonly quickAmounts = [1000, 3000, 5000, 10000];
   readonly roleName = computed(() => (this.role() === 'shuni' ? '淑尼' : '丞恩'));
+  readonly loanTabLabel = computed(() => (this.role() === 'shuni' ? '貸款簽核' : '申請貸款'));
 
   constructor(
     private readonly fb: FormBuilder,
@@ -104,6 +105,10 @@ export class AppComponent {
 
   paymentDateLabel(payment: MonthlyPayment): string {
     return payment.dueDate ?? payment.month;
+  }
+
+  pendingLoanRequests(requests: LoanRequest[]): LoanRequest[] {
+    return requests.filter((request) => request.status === 'pending');
   }
 
   private nextMonthDate(): string {

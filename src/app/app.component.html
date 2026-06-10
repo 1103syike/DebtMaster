@@ -34,7 +34,7 @@
 
       <nav class="tabs" aria-label="主要功能">
         <button type="button" [class.active]="view() === 'home'" (click)="view.set('home')">首頁</button>
-        <button type="button" [class.active]="view() === 'loan'" (click)="view.set('loan')">申請貸款</button>
+        <button type="button" [class.active]="view() === 'loan'" (click)="view.set('loan')">{{ loanTabLabel() }}</button>
         <button type="button" [class.active]="view() === 'payment'" (click)="view.set('payment')">還款計畫</button>
       </nav>
 
@@ -115,7 +115,7 @@
         </section>
       </section>
 
-      <section *ngIf="view() === 'loan'" class="panel form-panel">
+      <section *ngIf="view() === 'loan' && role() === 'chengen'" class="panel form-panel">
         <h2>申請一筆新貸款</h2>
         <form [formGroup]="loanForm" (ngSubmit)="submitLoan()">
           <label>
@@ -132,6 +132,28 @@
           </label>
           <button class="primary wide" type="submit">送出給淑尼簽核</button>
         </form>
+      </section>
+
+      <section *ngIf="view() === 'loan' && role() === 'shuni'" class="panel">
+        <div class="section-title">
+          <h2>貸款簽核</h2>
+          <span>{{ pendingLoanRequests(ledger.loanRequests).length }} 筆</span>
+        </div>
+
+        <p *ngIf="pendingLoanRequests(ledger.loanRequests).length === 0" class="empty">目前沒有需要簽核的貸款。</p>
+
+        <article *ngFor="let request of pendingLoanRequests(ledger.loanRequests); trackBy: trackById" class="request-card">
+          <div>
+            <h3>{{ request.title }}</h3>
+            <p>{{ money(request.amount) }}</p>
+            <small *ngIf="request.note">{{ request.note }}</small>
+          </div>
+          <span class="status">等待簽核</span>
+          <div class="actions">
+            <button class="primary compact" type="button" (click)="updateLoan(request, 'approved')">核准</button>
+            <button class="secondary compact" type="button" (click)="updateLoan(request, 'rejected')">退回</button>
+          </div>
+        </article>
       </section>
 
       <section *ngIf="view() === 'payment'" class="panel form-panel">
