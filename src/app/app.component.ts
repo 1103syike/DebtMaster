@@ -249,6 +249,10 @@ export class AppComponent {
     }).format(new Date(action.createdAt));
   }
 
+  actionMetaLabel(action: LedgerAction): string {
+    return [this.actionTimeLabel(action), action.deviceInfo].filter(Boolean).join(' ');
+  }
+
   today(): string {
     return this.dateLabel(Date.now());
   }

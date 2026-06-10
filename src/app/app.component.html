@@ -115,7 +115,7 @@
 
           <article *ngFor="let action of actionRecords(ledger.actions); trackBy: trackById" class="history-row">
             <strong>{{ action.text }}</strong>
-            <span>{{ actionTimeLabel(action) }}</span>
+            <span>{{ actionMetaLabel(action) }}</span>
           </article>
         </section>
       </section>

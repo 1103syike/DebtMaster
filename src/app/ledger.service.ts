@@ -274,6 +274,7 @@ export class LedgerService {
           actor,
           text,
           createdAt: Date.now(),
+          deviceInfo: this.deviceInfo(),
         },
         ...ledger.actions,
       ],
@@ -290,6 +291,24 @@ export class LedgerService {
       currency: 'TWD',
       maximumFractionDigits: 0,
     }).format(value);
+  }
+
+  private deviceInfo(): string {
+    const userAgent = navigator.userAgent;
+    const platform = navigator.platform;
+    const isIphone = /iPhone/i.test(userAgent);
+    const isIpad = /iPad/i.test(userAgent) || (platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const isAndroid = /Android/i.test(userAgent);
+    const isMac = /Macintosh|MacIntel/i.test(userAgent);
+    const isWindows = /Windows/i.test(userAgent);
+    const isChrome = /CriOS|Chrome/i.test(userAgent) && !/Edg/i.test(userAgent);
+    const isSafari = /Safari/i.test(userAgent) && !/Chrome|CriOS|Android/i.test(userAgent);
+    const isEdge = /Edg/i.test(userAgent);
+
+    const device = isIphone ? 'iPhone' : isIpad ? 'iPad' : isAndroid ? 'Android' : isMac ? 'Mac' : isWindows ? 'Windows' : '裝置';
+    const browser = isEdge ? 'Edge' : isChrome ? 'Chrome' : isSafari ? 'Safari' : '瀏覽器';
+
+    return `${device} ${browser}`;
   }
 
   private allocatePaymentToOldestItems(items: DebtItem[], amount: number): DebtItem[] {

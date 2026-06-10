@@ -42,6 +42,7 @@ export interface LedgerAction {
   actor: UserRole;
   text: string;
   createdAt: number;
+  deviceInfo?: string;
 }
 
 export interface Ledger {
