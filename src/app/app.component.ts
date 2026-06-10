@@ -1,5 +1,6 @@
 import { AsyncPipe, CommonModule, DecimalPipe, NgFor, NgIf } from '@angular/common';
 import { Component, computed, signal } from '@angular/core';
+import { Auth, signInAnonymously } from '@angular/fire/auth';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 
 import { LedgerService } from './ledger.service';
@@ -35,7 +36,10 @@ export class AppComponent {
   constructor(
     private readonly fb: FormBuilder,
     private readonly ledgerService: LedgerService,
-  ) {}
+    private readonly auth: Auth,
+  ) {
+    void this.ensureFirebaseSession();
+  }
 
   chooseRole(role: UserRole): void {
     localStorage.setItem('debt-master-role', role);
@@ -106,5 +110,11 @@ export class AppComponent {
     const date = new Date();
     date.setMonth(date.getMonth() + 1);
     return date.toISOString().slice(0, 7);
+  }
+
+  private async ensureFirebaseSession(): Promise<void> {
+    if (!this.auth.currentUser) {
+      await signInAnonymously(this.auth);
+    }
   }
 }

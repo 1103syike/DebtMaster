@@ -1,10 +1,11 @@
 import { FirebaseOptions } from 'firebase/app';
 
 export const firebaseConfig: FirebaseOptions = {
-  apiKey: 'PASTE_FIREBASE_API_KEY',
-  authDomain: 'PASTE_FIREBASE_AUTH_DOMAIN',
-  projectId: 'PASTE_FIREBASE_PROJECT_ID',
-  storageBucket: 'PASTE_FIREBASE_STORAGE_BUCKET',
-  messagingSenderId: 'PASTE_FIREBASE_MESSAGING_SENDER_ID',
-  appId: 'PASTE_FIREBASE_APP_ID',
+  apiKey: 'AIzaSyC5dPmRJRoeo3_4kfPIOBl3Vxr0mIrMnio',
+  authDomain: 'debtmaster-d08ae.firebaseapp.com',
+  projectId: 'debtmaster-d08ae',
+  storageBucket: 'debtmaster-d08ae.firebasestorage.app',
+  messagingSenderId: '1006986505024',
+  appId: '1:1006986505024:web:1412127de50c80085228a5',
+  measurementId: 'G-VZ828KRG7K',
 };

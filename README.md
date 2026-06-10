@@ -34,7 +34,13 @@ src/environments/firebase-config.ts
 ledgers/family-ledger
 ```
 
-這版的登入是為了家庭使用方便而設計的角色選擇，會存在瀏覽器的 `localStorage`。它不是安全驗證；如果要正式限制只有你和媽媽能改資料，下一步應該接 Firebase Auth，再加 Firestore Security Rules。
+Firebase Console 需要開啟：
+
+- Authentication: 啟用 `Anonymous`
+- Firestore Database: 建立資料庫
+- Firestore Rules: 可使用 `firestore.rules`
+
+這版的登入是為了家庭使用方便而設計的角色選擇，會存在瀏覽器的 `localStorage`。它不是身份驗證；程式會在背景使用 Firebase Anonymous Auth，讓 Firestore 至少可以限制為已登入 session 才能讀寫。
 
 ## Vercel
 
